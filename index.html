@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ProPDF Studio | Pro UX Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .page-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .sortable-ghost { opacity: 0.1; transform: scale(0.8); }
+        .sortable-drag { opacity: 0.9; transform: rotate(2deg) scale(1.05); cursor: grabbing; }
+        .handle { cursor: grab; transition: color 0.2s; }
+        .handle:active { cursor: grabbing; }
+        img { pointer-events: none; user-select: none; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <nav class="sticky top-0 z-[100] bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 md:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-2 md:gap-3">
+                <div class="bg-blue-600 p-2 rounded-xl shadow-lg shadow-blue-200">
+                    <i data-lucide="layout-grid" class="text-white w-5 h-5"></i>
+                </div>
+                <h1 class="text-lg font-extrabold text-slate-900 tracking-tight">ProPDF <span class="text-blue-600">Studio</span></h1>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <input type="file" id="addMoreInput" multiple accept="application/pdf" class="hidden">
+                <button onclick="document.getElementById('addMoreInput').click()" class="hidden md:flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-full text-sm font-bold hover:bg-slate-200 transition">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Tambah Fail
+                </button>
+                <button onclick="generatePDF()" id="exportBtn" class="hidden flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-full text-xs md:text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all">
+                    <i data-lucide="check-circle" class="w-4 h-4"></i> Export PDF
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-7xl mx-auto w-full px-4 md:px-8 py-6">
+        <div id="initial-upload" class="h-[70vh] flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-[2.5rem] bg-white hover:border-blue-500 hover:bg-blue-50/30 transition-all cursor-pointer group">
+            <input type="file" id="fileInput" multiple accept="application/pdf" class="hidden">
+            <div onclick="document.getElementById('fileInput').click()" class="text-center p-8">
+                <div class="w-20 h-20 bg-blue-600 text-white rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-200 group-hover:rotate-12 transition-transform">
+                    <i data-lucide="upload" class="w-10 h-10"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">Muat Naik PDF</h2>
+                <p class="text-slate-500 mt-2">Seret fail hampa ke sini untuk mula menyusun</p>
+            </div>
+        </div>
+
+        <div id="editor-view" class="hidden">
+            <div class="flex items-center justify-between mb-8">
+                <div class="flex items-center gap-4">
+                    <button onclick="document.getElementById('addMoreInput').click()" class="md:hidden p-2 bg-blue-50 text-blue-600 rounded-lg">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                    </button>
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800">Workspace</h2>
+                        <p id="page-stat" class="text-slate-500 text-xs font-semibold uppercase tracking-wider">0 Fail • 0 Halaman</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="rotateAll()" class="p-2.5 bg-white border border-slate-200 rounded-xl hover:text-blue-600 hover:border-blue-300 transition shadow-sm">
+                        <i data-lucide="rotate-cw" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="location.reload()" class="p-2.5 bg-white border border-slate-200 rounded-xl hover:text-red-500 hover:border-red-300 transition shadow-sm">
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="page-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+                <div id="inline-add" onclick="document.getElementById('addMoreInput').click()" class="border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center min-h-[220px] cursor-pointer hover:bg-blue-50 hover:border-blue-400 transition-all group order-last">
+                    <i data-lucide="file-plus" class="w-8 h-8 text-slate-300 group-hover:text-blue-500 transition-colors"></i>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="loader" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[200] flex flex-col items-center justify-center text-white">
+        <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="mt-6 font-bold tracking-[0.2em] text-[10px] uppercase">Menjana Dokumen...</p>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const pageGrid = document.getElementById('page-grid');
+        const loader = document.getElementById('loader');
+        const editorView = document.getElementById('editor-view');
+        const initialUpload = document.getElementById('initial-upload');
+        const exportBtn = document.getElementById('exportBtn');
+        const inlineAdd = document.getElementById('inline-add');
+
+        let pdfDocs = [];
+
+        // SortableJS with Handle Logic
+        new Sortable(pageGrid, {
+            handle: '.handle', // Hanya boleh tarik bila pegang area handle
+            animation: 250,
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            filter: '#inline-add',
+            onEnd: refreshUI
+        });
+
+        document.getElementById('fileInput').addEventListener('change', handleFiles);
+        document.getElementById('addMoreInput').addEventListener('change', handleFiles);
+
+        async function handleFiles(e) {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+
+            loader.classList.remove('hidden');
+            initialUpload.classList.add('hidden');
+            editorView.classList.remove('hidden');
+            exportBtn.classList.remove('hidden');
+
+            for (const file of files) {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfLibDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                const pdfjsDoc = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
+                const docId = Date.now() + Math.random();
+
+                for (let i = 1; i <= pdfjsDoc.numPages; i++) {
+                    const page = await pdfjsDoc.getPage(i);
+                    const viewport = page.getViewport({ scale: 0.5 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                    const card = document.createElement('div');
+                    card.className = 'page-card group relative bg-white rounded-2xl border border-slate-200 p-2 shadow-sm hover:shadow-md transition-all';
+                    card.dataset.docId = docId;
+                    card.dataset.origIdx = i - 1;
+                    card.dataset.rotation = 0;
+                    
+                    card.innerHTML = `
+                        <div class="absolute bottom-10 left-0 right-0 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 px-2">
+                            <div class="bg-slate-900/90 backdrop-blur text-white flex items-center gap-1 p-1.5 rounded-xl shadow-xl">
+                                <button onclick="rotateIndiv(this)" class="p-1.5 hover:bg-blue-600 rounded-lg transition" title="Rotate">
+                                    <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                                </button>
+                                <div class="w-[1px] h-4 bg-slate-700 mx-1"></div>
+                                <div class="handle p-1.5 hover:bg-slate-700 rounded-lg transition">
+                                    <i data-lucide="grip-vertical" class="w-4 h-4"></i>
+                                </div>
+                                <div class="w-[1px] h-4 bg-slate-700 mx-1"></div>
+                                <button onclick="this.closest('.page-card').remove(); refreshUI();" class="p-1.5 hover:bg-red-600 rounded-lg transition" title="Delete">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="preview-box aspect-[3/4] rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center transition-all duration-300">
+                            <img src="${canvas.toDataURL()}" class="w-full h-full object-contain" />
+                        </div>
+
+                        <div class="mt-2 flex items-center justify-center gap-1.5">
+                            <span class="text-[9px] font-extrabold text-slate-400 tracking-widest page-label">PG 1</span>
+                        </div>
+                    `;
+                    pageGrid.insertBefore(card, inlineAdd);
+                }
+                pdfDocs.push({ id: docId, doc: pdfLibDoc });
+            }
+
+            lucide.createIcons();
+            loader.classList.add('hidden');
+            refreshUI();
+        }
+
+        function rotateIndiv(btn) {
+            const card = btn.closest('.page-card');
+            const img = card.querySelector('.preview-box img');
+            let rot = (parseInt(card.dataset.rotation) + 90) % 360;
+            card.dataset.rotation = rot;
+            img.style.transform = `rotate(${rot}deg)`;
+        }
+
+        function rotateAll() {
+            document.querySelectorAll('.page-card').forEach(card => {
+                rotateIndiv(card.querySelector('button'));
+            });
+        }
+
+        function refreshUI() {
+            const cards = document.querySelectorAll('.page-card');
+            cards.forEach((card, idx) => {
+                card.querySelector('.page-label').innerText = `HALAMAN ${idx + 1}`;
+            });
+            document.getElementById('page-stat').innerText = `${pdfDocs.length} FAIL • ${cards.length} HALAMAN`;
+        }
+
+        async function generatePDF() {
+            loader.classList.remove('hidden');
+            const finalPdf = await PDFLib.PDFDocument.create();
+            const cards = Array.from(document.querySelectorAll('.page-card'));
+
+            for (const card of cards) {
+                const docId = parseFloat(card.dataset.docId);
+                const origIdx = parseInt(card.dataset.origIdx);
+                const rotation = parseInt(card.dataset.rotation);
+                const sourceDoc = pdfDocs.find(d => d.id === docId).doc;
+                const [copiedPage] = await finalPdf.copyPages(sourceDoc, [origIdx]);
+                
+                if (rotation !== 0) {
+                    const currentRot = copiedPage.getRotation().angle;
+                    copiedPage.setRotation(PDFLib.degrees(currentRot + rotation));
+                }
+                finalPdf.addPage(copiedPage);
+            }
+
+            const pdfBytes = await finalPdf.save();
+            const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `ProPDF_Final.pdf`;
+            link.click();
+            loader.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
